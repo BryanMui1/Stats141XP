@@ -6,9 +6,52 @@ format: pdf
 ```{r}
 library(tidyverse)
 library(logistf)
+library(readxl)
+library(maditr)
+library(sjPlot)
 ```
 
 ```{r}
-data <- read_csv("full_v5.csv")
+main <- read_csv("full_v5.csv")
+cols <- tibble(Index = seq_along(names(main)), Name = names(main))
+```
+
+```{r}
+cols
+
+# main %>%
+#   count(ip_patient_id) %>%
+#   arrange(desc(n))
+
+# make mmultiple encounters plot
+
+```
+
+
+
+```{r}
+# create logist model
+fir <- logistf(antibiotics_after_procedure_less_thirty ~ 
+                 category2 + Autoimmune + Diabetes + 
+                 Immunocompromise + Tobacco + Vascular + 
+                 multiple_encounters + mohs + elix_vw_score + preventive_antibiotics, 
+               data = main, firth = T, pl = T)
+
+```
+
+```{r}
+# view model results
+summary(fir)
+
+# view coefficients 
+exp(coef(fir))
+
+# view 95% confidence intervals
+round(exp(cbind(Estimate=coef(fir), confint(fir))), 4)
+```
+
+```{r}
+# plot 
+plot_model(fir) 
 ```
 
