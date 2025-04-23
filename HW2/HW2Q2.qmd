@@ -1,0 +1,10 @@
+---
+title: "HW2Q2"
+format: pdf
+---
+
+```{r}
+library(tidyverse)
+library(logistf)
+```
+
