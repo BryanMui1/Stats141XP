@@ -9,6 +9,7 @@ library(logistf)
 library(readxl)
 library(maditr)
 library(sjPlot)
+library(knitr)
 ```
 
 ```{r}
@@ -17,13 +18,25 @@ cols <- tibble(Index = seq_along(names(main)), Name = names(main))
 ```
 
 ```{r}
+#kable(cols, format = "latex", booktabs = TRUE)
 cols
 
-# main %>%
-#   count(ip_patient_id) %>%
-#   arrange(desc(n))
+multiple_patients <- main %>%
+  count(ip_patient_id) %>%
+  arrange(desc(n)) %>%
+  filter(n > 1) %>%
+  pull(ip_patient_id)
 
-# make mmultiple encounters plot
+# make multiple encounters var
+
+main <- main %>%
+  mutate(
+    multiple_encounters = if_else(ip_patient_id %in% multiple_patients, 1, 0)
+  )
+
+main %>%
+  count(multiple_encounters) %>%
+  arrange(desc(n))
 
 ```
 
@@ -43,12 +56,27 @@ fir <- logistf(antibiotics_after_procedure_less_thirty ~
 # view model results
 summary(fir)
 
-# view coefficients 
+# view coefficients
 exp(coef(fir))
 
 # view 95% confidence intervals
 round(exp(cbind(Estimate=coef(fir), confint(fir))), 4)
 ```
+
+Get the coefs table, exponentiate coefs, and then output it nicely:
+
+```{r}
+coefs_table <- data.frame(round(exp(cbind(Estimate=coef(fir), confint(fir))), 4))
+coefs_table <- coefs_table %>%
+  mutate(Estimate = exp(Estimate), Lower.95. = exp(Lower.95.), Upper.95. = exp(Upper.95.)) %>%
+  rename(`exp(Coef Estimate)` = Estimate, `exp(Lower 95%)` = Lower.95., `exp(Upper 95%)` = Upper.95.) %>%
+  mutate(`exp(Coef Estimate)` = format(`exp(Coef Estimate)`, scientific = FALSE))
+head(coefs_table, n=17)
+
+kable(coefs_table, format = "latex", booktabs = TRUE)
+```
+
+
 
 ```{r}
 # plot 
