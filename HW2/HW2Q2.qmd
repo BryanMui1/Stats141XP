@@ -77,9 +77,31 @@ kable(coefs_table, format = "latex", booktabs = TRUE)
 ```
 
 
+```{r}
+# apply exponentiation to all model coefficients and confidence intervals
+exp_fir <- fir
+exp_fir$coefficients <- exp(exp_fir$coefficients)
+exp_fir$ci.upper <- exp(exp_fir$ci.upper)
+exp_fir$ci.lower <- exp(exp_fir$ci.lower)
+
+print(fir$coefficients)
+cat("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", "\n")
+print(exp_fir$coefficients)
+cat("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%", "\n")
+print(fir$ci.upper)
+cat("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", "\n")
+print(exp_fir$ci.upper)
+cat("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%", "\n")
+print(fir$ci.lower)
+cat("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~", "\n")
+print(exp_fir$ci.lower)
+cat("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%", "\n")
+```
+
 
 ```{r}
 # plot 
-plot_model(fir) 
+plot_model(fir)
+plot_model(exp_fir) 
 ```
 
