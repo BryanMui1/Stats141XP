@@ -1,6 +1,6 @@
 ---
 title: "HW2Q2"
-format: pdf
+format: html
 ---
 
 ```{r}
@@ -10,6 +10,8 @@ library(readxl)
 library(maditr)
 library(sjPlot)
 library(knitr)
+library(kableExtra)
+library(pROC)
 ```
 
 ```{r}
@@ -103,5 +105,28 @@ cat("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # plot 
 plot_model(fir)
 plot_model(exp_fir) 
+```
+
+Create a contingency table for (antibiotics_after_procedure_less_thirty) and category2
+
+```{r}
+contigency <- table(Response = main$antibiotics_after_procedure_less_thirty, Body_Part = main$category2)
+contigency_m <- as.data.frame.matrix(contigency)
+
+kbl(contigency_m) %>%
+  add_indent(c(1:2)) %>%
+  add_header_above(c("Body Part" = 9)) %>%
+  kable_paper("striped", full_width = F) %>%
+  row_spec(0, angle = -30, font_size = 10) %>%
+  column_spec(1, bold = T, border_right = T) %>%
+  pack_rows("Response", 1, 2)
+```
+
+ROC Curve
+
+```{r}
+probs <- predict(fir, type = "response")
+roc_m <- roc(main$antibiotics_after_procedure_less_thirty, probs)
+plot(roc_m, col='blue', main = "ROC Curve", print.auc = TRUE)
 ```
 
