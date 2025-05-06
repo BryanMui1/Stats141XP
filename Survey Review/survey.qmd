@@ -1,0 +1,89 @@
+---
+title: "Survey Design Review Exercise"
+format: pdf
+---
+
+```{r}
+library(psych)
+library(paran) 
+library(MASS)
+library(GPArotation)
+library(tidyverse)
+library(reshape2)
+library(ggplot2)
+```
+
+## Running Cronbach alpha 
+
+```{r}
+stemq2 <- read_csv("./stemq2.csv")
+
+# Inspect to confirm it worked
+glimpse(stemq2)
+```
+
+
+```{r}
+psych::alpha(stemq2)
+```
+
+
+## Finding the correlation between each item and the total score
+
+```{r}
+attach(stemq2)
+totalscore <- (q1+q2+q3+q4+q5+q6+q7+q8+q9+q10+q11+q12+q13+q14+q15+q16+q17+q18+q19+q20+q21+q22+q23+q24)
+newdata <- data.frame(q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12,q13,q14,q15,q16,q17,q18,q19,q20,q21,q22,q23,q24,totalscore)
+detach(stemq2)
+head(newdata)
+
+cor_matrix <- cor(newdata)
+cor_totalscore <- cor_matrix["totalscore", , drop=FALSE]
+cor_totalscore
+
+cor_df <- as.data.frame(cor_totalscore) %>%
+  pivot_longer(cols = everything(), names_to = "Question", values_to = "Correlation with Totalscore") %>%
+  arrange(`Correlation with Totalscore`) %>%
+  mutate(Question = factor(Question, levels = Question))  # enforce ordering
+
+ggplot(cor_df, aes(x = `Correlation with Totalscore`, y = Question)) +
+  geom_col(fill = "steelblue") +
+  xlim(0, 1) +
+  theme_minimal() +
+  labs(title = "Correlations with Totalscore", x = "Correlation", y = "Question")
+```
+ 
+## Running parallel analysis
+
+```{r}
+paran(stemq2,cfa=TRUE, graph=TRUE,color=TRUE,col=c("black","red","blue"))
+```
+
+
+## R command for running exploratory factor analysis
+
+```{r}
+fa(stemq2,nfactors=2,rotate="oblimin")
+```
+
+## command for running Kaiser-Meyer-Olkin factor adequacy - a value KMO values between 0.8 and 1indicate the sampling is adequate. KMO values less than 0.6 indicate the sampling is not adequate - some set the cut off at 0.50. We get a value of 0.82, so we are OK
+
+```{r}
+KMO(stemq2)
+```
+
+## Command for creating explanatory factor analysis (let us assume three underlying factors). Factors one, two, and three explain 60%, 24%, and 16% of the variance respectivley.
+
+```{r}
+fa(stemq2,nfactors = 2,rotate="oblimin")
+```
+
+
+## Command for creation of diagram underlying extracted factors 
+
+```{r}
+M1<-fa(stemq2,nfactors = 2,rotate="oblimin")
+fa.diagram(M1,main="stemq2")
+```
+
+
