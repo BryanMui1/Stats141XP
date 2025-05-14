@@ -1,0 +1,45 @@
+---
+title: "Cry Types Project"
+format: pdf
+---
+
+# Libraries:
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+belly_pain <- read_csv2("./Data/belly_pain_features_osm_affect (1).csv")
+burping <- read_csv2("./Data/burping_features_osm_affect (1).csv")
+discomfort <- read_csv2("./Data/discomfort_features_osm_affect (1).csv")
+full_data_odd <- read_csv("./Data/filtered_full_data_odd.csv")
+tired <- read_csv2("./Data/tired_features_osm_affect.csv")
+demographics <- read_csv("./Data/demographics_students.csv")
+```
+
+# EDA and cleaning:
+
+Find the groups of demographics dataset:
+
+```{r}
+demographics %>%
+  group_by(Reason) %>%
+  summarise(count = n())
+```
+
+I see some no email and no gender and no age. clean the demographics data
+
+```{r}
+demographics <- demographics %>%
+  filter(ID != 'NO-EMAIL', Age != 'NO-AGE', Gender != 'NO-GENDER')
+
+demographics %>%
+  group_by(Reason) %>%
+  summarise(count = n())
+```
+
+```{r}
+```
+
