@@ -1,0 +1,89 @@
+---
+title: "141XP EDA"
+author: "TEAM 4"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(janitor)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+belly_pain <- read.csv("belly_pain_features_osm_affect (1).csv", header = TRUE)
+burping <- read.csv("burping_features_osm_affect (1).csv", header = TRUE)
+discomfort <- read.csv("discomfort_features_osm_affect (1).csv", header = TRUE)
+full_data_odd <- read.csv("filtered_full_data_odd.csv", header = TRUE)
+tired <- read.csv("tired_features_osm_affect.csv", header = TRUE)
+demographics <- read.csv("demographics_students.csv", header = TRUE)
+```
+
+```{r}
+head(demographics)
+```
+
+# Reason Distribution
+```{r}
+table(demographics$Reason)
+
+barplot(table(demographics$Reason),
+        col = "lightgreen",
+        main = "Cry Type Distribution",
+        ylab = "Count")
+
+```
+
+# Reason with Gender Proportion
+```{r}
+table(demographics$Gender, demographics$Reason)
+
+library(ggplot2)
+ggplot(demographics, aes(x = Reason, fill = Gender)) +
+  geom_bar(position = "fill") +
+  labs(title = "Gender Proportion by Cry Type", y = "Proportion") +
+  theme_minimal()
+```
+
+# Chi-Square
+```{r}
+chisq.test(table(demographics$Gender, demographics$Reason))
+```
+
+# ANOVA w/ removed missing ages
+```{r}
+demographics$Age[demographics$Age == "NO-AGE"] <- NA
+demographics$Age <- as.numeric(demographics$Age)
+anova_result <- aov(Age ~ Reason, data = demographics)
+summary(anova_result)
+
+boxplot(Age ~ Reason, data = demographics,
+        main = "Age Distribution by Cry Type",
+        xlab = "Cry Type",
+        ylab = "Age (Months)",
+        col = "lightgreen")
+```
+
+# Cry Acoustics Dimensions
+```{r}
+library(factoextra)
+acoustic_features <- full_data_odd %>%
+  select(where(is.numeric)) %>%
+  na.omit()  
+
+scaled_features <- scale(acoustic_features)
+pca <- prcomp(scaled_features, center = TRUE, scale. = TRUE)
+
+fviz_eig(pca, addlabels = TRUE, barfill = "steelblue") +
+  labs(title = "Scree Plot")
+
+```
+
