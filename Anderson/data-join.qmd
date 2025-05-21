@@ -1,0 +1,81 @@
+---
+title: "Cry Types Project"
+format: pdf
+---
+
+# Libraries:
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+full_data_odd <- read_csv("./Data/filtered_full_data_odd.csv")
+demographics <- read_csv("./Data/demographics_students.csv")
+```
+
+# cleaning:
+
+Find the groups of demographics dataset:
+
+```{r}
+demographics %>%
+  group_by(Reason) %>%
+  summarise(count = n())
+```
+
+I see some no email and no gender and no age. clean the demographics data
+
+```{r}
+# demographics <- demographics %>%
+#   filter(ID != 'NO-EMAIL', Age != 'NO-AGE', Gender != 'NO-GENDER')
+# 
+# demographics %>%
+#   group_by(Reason) %>%
+#   summarise(count = n())
+```
+
+```{r}
+full_data_odd %>%
+  group_by(ParentFile) %>%
+  summarise(count = n())
+```
+
+```{r}
+demographics %>%
+  group_by(Reason) %>%
+  summarise(count = n())
+```
+
+Join the two datasets:
+```{r}
+# # Filter out email and no email separately 
+# demographics_no_em <- demographics %>%
+#   filter(ID == "NO-EMAIL")
+# demographics_em <- demographics %>%
+#   filter(ID != "NO-EMAIL")
+
+# full_data_no_em <- full_data_odd %>%
+#   filter(str_detect(Filename, "^NO-EMAIL"))
+# full_data_em <- full_data_odd %>%
+#   filter(!str_detect(Filename, "^NO-EMAIL"))
+
+# For the email, join by ID
+full_data_mod <- full_data_odd %>%
+  #mutate(ID = str_split(Filename, "_")[1]) %>%
+  separate(Filename, into = paste0("Comp", 1:8), sep = "_") %>%
+  relocate(paste0("Comp", 1:8), .before = ParentFile) %>%
+  rename(ID = `Comp1`, Reason = Comp2, Age = Comp3, Gender = Comp4, Date = Comp5, Sample = Comp6) %>%
+  select(-Comp7, -Comp8)
+
+# join_em <- left_join(full_data_em, demographics_em)
+
+# For the no email, join by the sample ID plus date
+
+```
+
+```{r}
+# write_csv(full_data_mod, "full_data_mod.csv")
+```
+
