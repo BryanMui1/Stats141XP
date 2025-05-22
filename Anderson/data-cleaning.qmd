@@ -1,0 +1,90 @@
+---
+title: "Data Cleaning"
+format: html
+---
+
+# Packages
+```{r}
+library(tidyverse)
+```
+
+
+# Read CSV
+```{r}
+cry_df <- read_csv("./Data/full_data_mod.csv")
+head(cry_df)
+```
+
+# Clean Data
+
+Find the NAs/missing values
+```{r}
+cry_df %>%
+  summarise(across(everything(), ~sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "column", values_to = "na_count") %>%
+  arrange(desc(na_count))
+
+cry_df %>%
+  group_by(ID) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+cry_df %>%
+  group_by(Reason) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+cry_df %>%
+  group_by(Age) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+cry_df %>%
+  group_by(Gender) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+```
+
+We can see that we haave 260 missing emails, 380 missing age, and 313 missing gender. That's around 1/4 of the data. We also have this thing called MULT-REDCAP-GENDER which is confusing.
+
+Cleanup the Sample Column: 
+```{r}
+cry_df <- cry_df %>%
+   mutate(Sample = str_remove(Sample, "\\.wav$"))
+```
+
+Numerical Transformations: Make the Numerical Values all numeric,
+```{r}
+cry_df <- cry_df %>%
+  mutate(Age = ifelse(Age == "NO-AGE", NA, Age), 
+         Gender = ifelse(Gender== "NO-GENDER", NA, Gender)) %>% # turn into NA
+  mutate(Age = as.numeric(Age), Sample = as.numeric(Sample))
+```
+
+Categorical Transformations: Make a new ID label, cleanup parentfile, turn categorical variables into factors
+```{r}
+cry_df <- cry_df %>%
+  mutate(newID = row_number(),
+         Reason = as.factor(Reason),
+         Gender = as.factor(Gender),
+         ParentFile = as.factor(str_match(ParentFile, "_([^_]+)\\.csv")[,2])) %>%
+  relocate(newID, .before = ID)
+```
+
+```{r}
+glimpse(cry_df)
+```
+
+Make a different dataframe with NA's dropped
+```{r}
+cry_df_na_drop <- cry_df %>%
+  drop_na()
+```
+
+Write to a CSV
+```{r}
+write_csv(cry_df, "full_data_cleaned_include_nas.csv")
+write_csv(cry_df_na_drop, "full_data_cleaned_without_nas.csv")
+```
+
+
