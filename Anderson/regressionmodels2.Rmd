@@ -1,0 +1,569 @@
+---
+title: "Regression Models"
+author: "(Team 5)"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+data <- read.csv("finaldata.csv", header=TRUE) #loading data
+data2 <- data
+```
+
+```{r}
+library(tidyverse) # loading libraries
+library(caret)
+library(e1071) 
+library(nnet) 
+```
+
+```{r}
+data2$Reason <- as.factor(data$Reason) # factor data
+
+set.seed(333) # set up training data
+trainIndex <- createDataPartition(data2$Reason, p = 0.8, list = FALSE)
+trainData <- data2[trainIndex, ]
+testData <- data2[-trainIndex, ]
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+set.seed(333) # logistic model, just a test!
+model_logit <- train(
+  Reason ~ . - ID,
+  data = trainData,
+  method = "multinom",
+  trControl = ctrl
+)
+
+model_logit$results
+
+```
+
+```{r}
+head(data)
+```
+
+# PREFERRED MODELS
+
+## Logistic Regression
+
+```{r}
+# preferred model
+data$Reason <- as.factor(data$Reason)
+data$Gender <- as.factor(data$Gender)
+
+data_clean <- data %>%
+  select(-newID, -ID, -Date, -Sample) # remove categorical data
+
+acoustic_features <- data_clean %>%
+  select_if(is.numeric) %>%
+  scale() %>%
+  as.data.frame() # get the acoustic features
+
+data_model <- bind_cols(acoustic_features, data %>% select(Reason, Gender, Age))
+
+```
+
+```{r}
+set.seed(123)
+logit_model <- multinom(Reason ~ ., data = data_model) # logstic model creation
+
+preds <- predict(logit_model, newdata = data_model)
+
+conf_mat <- confusionMatrix(preds, data_model$Reason) # produce confusion matrix
+
+print(conf_mat$overall['Accuracy'])
+print(conf_mat$table)
+
+conf_df <- as.data.frame(conf_mat$table) # print the matrix
+ggplot(conf_df, aes(Prediction, Reference, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), color = "white", size = 4) +
+  scale_fill_gradient(low = "blue", high = "red") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix")
+
+```
+
+## Linear Regression
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+data_lm <- data %>% # linear model data
+  select(loudness_sma3_amean, Age, Gender,
+         starts_with("shimmer"),
+         starts_with("F0"),
+         starts_with("alpha"),
+         starts_with("F1"),
+         starts_with("F2"))
+
+data_lm$Gender <- as.factor(data_lm$Gender)
+
+lm_model <- lm(loudness_sma3_amean ~ ., data = data_lm) # set up model
+
+summary(lm_model) # summarize
+
+data_lm$Predicted <- predict(lm_model, newdata = data_lm)
+
+# plot the model
+ggplot(data_lm, aes(x = loudness_sma3_amean, y = Predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  theme_minimal() +
+  labs(title = "Predicted vs Actual Cry Loudness",
+       x = "Actual",
+       y = "Predicted")
+
+
+```
+
+```{r}
+library(ggplot2)
+
+# just a simple plot for more linear regression showcase
+ggplot(data, aes(x = Reason, y = loudness_sma3_amean, fill = Reason)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3, color = "black") +
+  theme_minimal() +
+  labs(
+    title = "Cry Loudness by Parent-Labeled Reason",
+    x = "Cry Type (Reason)",
+    y = "Average Loudness"
+  ) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  guides(fill = FALSE)
+
+```
+
+```{r}
+library(dplyr)
+library(factoextra)
+
+pca_data <- data %>% # obtain pca data for narrowing variables
+  select(starts_with("shimmer"),
+         starts_with("F0"),
+         starts_with("alpha"),
+         starts_with("F1"),
+         starts_with("F2")) %>%
+  na.omit()
+
+scaled_pca_data <- scale(pca_data) # scaling data
+
+pca <- prcomp(scaled_pca_data, center = TRUE, scale. = TRUE)
+
+# plot the pca
+fviz_eig(pca, 
+         addlabels = TRUE,
+         barfill = "steelblue",
+         barcolor = "black") +
+  labs(title = "Scree Plot: Variance Explained by Principal Components",
+       x = "Principal Component",
+       y = "Percentage of Variance Explained")
+
+```
+
+```{r}
+head(pca$rotation)
+```
+
+```{r}
+# chi square for EDA between gender and reason
+table_gender_reason <- table(data$Gender, data$Reason)
+
+chisq.test(table_gender_reason)
+
+```
+
+```{r}
+# anova model between age and reason
+anova_model <- aov(Age ~ Reason, data = data)
+summary(anova_model)
+
+```
+
+
+```{r}
+# INVALID MODEL, DISREGARD CHUNK
+library(cluster)
+library(caret)
+
+# scaled numeric features for clustering
+acoustic_features <- data2 %>%
+  select_if(is.numeric) %>%
+  scale()
+
+# K-means clustering (assuming 5)
+set.seed(123)
+kmeans_model <- kmeans(acoustic_features, centers = 5, nstart = 25)
+data2$Cluster <- as.factor(kmeans_model$cluster)
+
+# Train a classifier
+set.seed(123)
+model_cluster <- train(
+  Cluster ~ . - Reason - ID,  # Remove parent label
+  data = data2,
+  method = "rf",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# average accuracy
+mean(model_cluster$resample$Accuracy)
+
+```
+
+```{r}
+# datasets
+features_acoustic <- data2 %>% select_if(is.numeric)
+features_demo <- data2 %>% select(Age, Gender)
+full_features <- bind_cols(features_acoustic, features_demo)
+
+# Encode gender
+full_features$Gender <- as.factor(full_features$Gender)
+
+# Add labels
+full_features$Reason <- data2$Reason
+
+# WITHOUT demographics
+set.seed(123)
+model_no_demo <- train(
+  Reason ~ . - Age...2 - Gender - newID,
+  data = full_features,
+  method = "rf",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# WITH demographics
+set.seed(123)
+model_with_demo <- train(
+  Reason ~ . - newID,
+  data = full_features,
+  method = "rf",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# Compare
+mean(model_no_demo$resample$Accuracy)
+mean(model_with_demo$resample$Accuracy)
+
+```
+
+```{r}
+data3 <- data
+```
+
+```{r}
+# INVALID MODEL, DISREGARD CHUNK
+library(caret)
+library(e1071)
+
+set.seed(123)
+
+#  10-fold CV setup
+ctrl <- trainControl(method = "cv", number = 10)
+
+# Train SVM classifier
+svm_model <- train(
+  Reason ~ .,
+  data = data3 %>% select(-Age, -Gender, -newID, -ID, -Date, -Sample),  # acoustic only
+  method = "svmLinear",
+  trControl = ctrl
+)
+
+# mean accuracy
+mean(svm_model$resample$Accuracy)
+
+```
+
+```{r}
+data3 <- data3 %>%
+  select(-ParentFile, -Sample, -newID, -ID, -Date)  # Remove non-acoustic
+nrow(data3)
+nrow(unique(data3)) 
+head(data3)
+```
+
+```{r}
+# test split check
+set.seed(123)
+index <- createDataPartition(data3$Reason, p = 0.8, list = FALSE)
+train_set <- data3[index, ]
+test_set  <- data3[-index, ]
+
+# svm model
+svm_model_split <- train(
+  Reason ~ .,
+  data = train_set,
+  method = "svmLinear",
+  trControl = trainControl(method = "none")
+)
+
+# Predict on test set
+preds <- predict(svm_model_split, newdata = test_set)
+confusionMatrix(preds, test_set$Reason)
+
+```
+
+```{r}
+library(caret)
+
+set.seed(123)
+
+# Cross-validation
+ctrl <- trainControl(method = "cv", number = 10)
+
+# Train a classifier to predict Reason from acoustic features
+model_q1 <- train(
+  Reason ~ .,
+  data = data3,
+  method = "rf",  # or "svmLinear" if you prefer
+  trControl = ctrl
+)
+
+# average cross-validated accuracy
+mean(model_q1$resample$Accuracy)
+
+```
+
+```{r}
+# Remove labels
+acoustic_only <- data3 %>% select(-Reason, -Gender, -Age)  # assuming these exist
+
+# scale automatically in k means
+set.seed(123)
+kmeans_model <- kmeans(acoustic_only, centers = 5, nstart = 25)
+
+# Add cluster labels back to data
+data3$Cluster <- as.factor(kmeans_model$cluster)
+
+```
+
+```{r}
+set.seed(123)
+
+#random forest to predict clusters
+model_q2 <- train(
+  Cluster ~ . -Reason,
+  data = data3,
+  method = "rf",
+  trControl = trainControl(method = "cv", number = 10)
+)
+
+# average accuracy
+mean(model_q2$resample$Accuracy)
+
+```
+
+
+```{r}
+# tart fresh
+data5 <- data
+
+# only acoustic data
+acoustic_numeric <- data5 %>%
+  select(where(is.numeric))
+
+# Scale the features
+acoustic_scaled <- scale(acoustic_numeric)
+
+#k-means clustering (k=5)
+set.seed(123)
+k <- 5
+kmeans_res <- kmeans(acoustic_scaled, centers = k, nstart = 25)
+
+# add cluster labels to data5
+data5$Cluster <- factor(kmeans_res$cluster)
+
+#print results
+table(Cluster = data5$Cluster, Reason = data5$Reason)
+
+```
+
+```{r}
+library(caret)
+
+data5$Cluster <- factor(data5$Cluster)  # facotr data
+
+#prepare dataset for classification
+dataset_for_cluster_pred <- data5 %>%
+  select(-Reason, -Gender, -Age, -newID, -Date, -Sample)  # keep acoustic + Cluster
+
+# 10-fold cross-validation
+set.seed(123)
+ctrl <- trainControl(method = "cv", number = 10)
+
+# rando forest to predict clusters from features
+cluster_pred_model <- train(
+  Cluster ~ .,
+  data = dataset_for_cluster_pred,
+  method = "rf",
+  trControl = ctrl
+)
+
+# CV accuracy for predicting clusters
+mean(cluster_pred_model$resample$Accuracy)
+
+```
+
+```{r}
+library(ggplot2)
+library(factoextra)
+
+# PCA
+pca_kmeans <- prcomp(acoustic_scaled)
+
+# fist two PCs
+pca_df <- as.data.frame(pca_kmeans$x[, 1:2])
+pca_df$Cluster <- factor(data5$Cluster)
+
+# Plot
+ggplot(pca_df, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(alpha = 0.7, size = 2) +
+  labs(title = "K-means Clustering of Baby Cries (PCA Projection)",
+       x = "Principal Component 1",
+       y = "Principal Component 2") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")
+
+```
+
+```{r}
+# table for predicitng clusters
+table(Cluster = data5$Cluster, Reason = data5$Reason)
+```
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(GGally)
+library(skimr)
+```
+
+```{r}
+data6 <- data
+
+# Summary stats variables
+skim(data6)
+
+```
+
+```{r}
+# Histograms of some acoustic features
+acoustic_subset <- data6 %>%
+  select(loudness_sma3_amean,
+         F0semitoneFrom27.5Hz_sma3nz_percentile50.0,
+         shimmerLocaldB_sma3nz_amean,
+         F1amplitudeLogRelF0_sma3nz_amean)
+
+# histogram setup
+acoustic_long <- acoustic_subset %>%
+  pivot_longer(everything(), names_to = "Feature", values_to = "Value")
+
+# create histograms
+ggplot(acoustic_long, aes(x = Value)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  facet_wrap(~ Feature, scales = "free", ncol = 2) +
+  theme_minimal() +
+  labs(title = "Distribution of Selected Acoustic Features")
+
+```
+
+```{r}
+# eda: dist after cleaing data
+ggplot(data6, aes(x = Reason, fill = Reason)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Distribution of Parent-Labeled Cry Reasons", x = "Reason", y = "Count") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+```{r}
+# reason by gender plot
+ggplot(data6, aes(x = Gender, fill = Reason)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Cry Reasons by Gender (Proportion)", y = "Proportion") +
+  theme_minimal()
+```
+
+# QUESTION 2
+```{r}
+data7 <- data
+# ACOUSTIC ONLY AGAIN
+acoustic_only2 <- data7 %>%
+  select(-Reason, -Gender, -Age, -newID, -ID, -Date, -Sample, -ParentFile)
+
+acoustic_scaled <- scale(acoustic_only2)
+
+# K-means clustering
+set.seed(123)
+kmeans_model <- kmeans(acoustic_scaled, centers = 5, nstart = 25)
+
+# Add cluster labels
+data7$Cluster <- as.factor(kmeans_model$cluster)
+
+```
+
+```{r}
+library(caret)
+set.seed(123)
+
+ctrl <- trainControl(method = "cv", number = 10)
+
+# RF model using only Cluster to predict Reason
+rf_cluster_model <- train(
+  Reason ~ Cluster,
+  data = data7,
+  method = "rf",
+  trControl = ctrl
+)
+
+# average cross-validated accuracy
+mean(rf_cluster_model$resample$Accuracy)
+
+# table for results
+table_cluster_reason <- table(data7$Cluster, data7$Reason)
+table_cluster_reason
+
+# Convert to data frame for plotting
+library(ggplot2)
+library(dplyr)
+
+conf_df <- as.data.frame(table_cluster_reason)
+colnames(conf_df) <- c("Cluster", "Reason", "Count")
+
+ggplot(conf_df, aes(x = Reason, y = Cluster, fill = Count)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = Count), color = "black", size = 4) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  labs(title = "Cluster vs Reason Heatmap",
+       x = "Parent-Labeled Reason",
+       y = "Cluster (from K-means)") +
+  theme_minimal()
+
+```
+
+```{r}
+# Create a contingency table
+table(data7$Cluster, data7$Reason)
+
+# data frame too
+cluster_reason_df <- as.data.frame(table(data7$Cluster, data7$Reason))
+print(cluster_reason_df)
+
+# show proportions within each cluster
+prop.table(table(data7$Cluster, data7$Reason), margin = 1)
+
+```
+
+```{r}
+# bar plot to see distribution of reasons
+barplot(table(data2$Reason),
+col = "lightgreen",
+main = "Cry Type Distribution",
+ylab = "Count")
+
+```
+

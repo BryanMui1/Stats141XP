@@ -1,0 +1,418 @@
+---
+title: "Cry Baby Project - Random Forest"
+author: "Carolynn Rui"
+date: "2025-05-27"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, echo=TRUE, results='hide', message=FALSE, warning=FALSE}
+
+# loading all libraries
+library(tidyverse)
+library(randomForest)
+library(mice)
+library(caret)
+library(dplyr)
+library(xgboost)
+library(MLmetrics)
+library(ggplot2)
+library(reshape2)
+library(pROC)
+library(factoextra)
+library(e1071)
+library(stats)
+library(igraph)
+library(kernlab)
+library(dbscan)
+library(knitr)
+
+```
+
+```{r loading data in}
+
+# loading incomplete and complete data into R
+data_with_nas <- read.csv("full_data_cleaned_include_nas.csv")
+data_complete <- read.csv("full_data_cleaned_without_nas.csv")
+
+# removing columns (newID, ID, Date, Sample, ParentFile)
+rf_with_nas <- read.csv("full_data_cleaned_include_nas.csv")[, -c(1, 2, 6:8)]
+rf_complete <- read.csv("full_data_cleaned_without_nas.csv")[, -c(1, 2, 4:8)]
+rf_with_nas$Reason <- as.factor(rf_with_nas$Reason)
+rf_complete$Reason <- as.factor(rf_complete$Reason)
+
+```
+
+```{r random forest model on complete cases only using numeric variables}
+
+# set seed for reproducibility
+set.seed(605794011)
+
+# train/test split
+train_index <- createDataPartition(rf_complete$Reason, p = 0.8, list = FALSE)
+train_complete <- rf_complete[train_index, ]
+test_complete <- rf_complete[-train_index, ]
+
+# fit random forest model
+randomforest_complete <- randomForest(Reason ~ ., data = train_complete, importance = TRUE)
+
+# predictions and evaluation of accuracy 
+preds_complete <- predict(randomforest_complete, test_complete)
+conf_matrix_complete <- confusionMatrix(preds_complete, test_complete$Reason)
+accuracy_complete <- conf_matrix_complete$overall['Accuracy']
+
+# show results
+print(conf_matrix_complete)
+print(accuracy_complete)
+varImpPlot(randomforest_complete, main = "Variable Importance (Complete Data)", cex = 0.7)
+
+# creating a confusion matrix heatmap (pretty)
+cm_df <- as.data.frame(conf_matrix_complete$table)
+ggplot(cm_df, aes(x = Reference, y = Prediction)) +
+  geom_tile(aes(fill = Freq), color = "white") +
+  geom_text(aes(label = Freq), size = 4) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix Heatmap", x = "Actual", y = "Predicted")
+
+```
+
+```{r random forest model on mice imputed data}
+
+# create method vector for mice
+methods <- make.method(rf_with_nas)
+rf_with_nas$Gender[rf_with_nas$Gender == "MULT-REDCAP-GENDER"] <- NA
+rf_with_nas$Gender <- as.factor(rf_with_nas$Gender)
+init <- mice(rf_with_nas, maxit = 0)  
+methods <- init$method                
+methods["Reason"] <- ""
+methods["Gender"] <- "logreg"  # or "polyreg" if >2 levels
+
+# impute missing values using mice
+imputed_data <- mice(rf_with_nas, m = 1, method = methods, seed = 605794011)
+data_imputed <- complete(imputed_data, action = 1)
+
+# ensure target and gender are factors
+data_imputed$Reason <- as.factor(data_imputed$Reason)
+data_imputed$Gender <- as.factor(data_imputed$Gender)
+
+# set seed for reproducibility
+set.seed(605794011)
+
+# train/test split
+train_index2 <- createDataPartition(data_imputed$Reason, p = 0.8, list = FALSE)
+train_imputed <- data_imputed[train_index2, ]
+test_imputed <- data_imputed[-train_index2, ]
+
+# fit random forest model
+rf_imputed <- randomForest(Reason ~ ., data = train_imputed, importance = TRUE)
+
+# predictions and evaluations of accuracy
+preds_imputed <- predict(rf_imputed, test_imputed)
+conf_matrix_imputed <- confusionMatrix(preds_imputed, test_imputed$Reason)
+accuracy_imputed <- conf_matrix_imputed$overall['Accuracy']
+
+# show results
+print(conf_matrix_imputed)
+print(accuracy_imputed)
+varImpPlot(rf_imputed, main = "Variable Importance (MICE Imputed Data)", cex = 0.7)
+
+# creating a confusion matrix heatmap (pretty)
+cm_df <- as.data.frame(conf_matrix_imputed$table)
+ggplot(cm_df, aes(x = Reference, y = Prediction)) +
+  geom_tile(aes(fill = Freq), color = "white") +
+  geom_text(aes(label = Freq), size = 4) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix Heatmap (Imputed Data)", x = "Actual", y = "Predicted")
+
+# extract variable importance
+var_imp <- importance(rf_imputed, type = 1)  # MeanDecreaseAccuracy
+var_imp_df <- as.data.frame(var_imp)
+colnames(var_imp_df) <- make.names(colnames(var_imp_df))  # Ensure clean column names
+var_imp_df$Variable <- rownames(var_imp_df)
+
+# select top 20 variables
+top_n <- 20
+var_imp_df <- as_tibble(var_imp_df) %>%
+  arrange(desc(MeanDecreaseAccuracy)) %>%
+  slice(1:top_n)
+
+# create pretty plot for variable importance
+ggplot(var_imp_df, aes(x = reorder(Variable, MeanDecreaseAccuracy),
+                       y = MeanDecreaseAccuracy)) +
+  geom_col(fill = "#4682B4") +
+  coord_flip() +
+  theme_minimal(base_size = 13) +
+  labs(title = "Top 20 Most Important Variables",
+       subtitle = "Measured by Mean Decrease in Accuracy (Imputed Data)",
+       x = NULL,
+       y = "Mean Decrease in Accuracy") +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    axis.text.y = element_text(size = 8),
+    axis.text.x = element_text(size = 11)
+  )
+
+```
+
+```{r using only specific features}
+
+# subset of variables from variable importance
+rf_with_nas <- rf_with_nas[, c("Reason", "loudness_sma3_percentile50.0", "loudness_sma3_stddevNorm", "F2amplitudeLogRelF0_sma3nz_stddevNorm", "StddevUnvoicedSegmentLength", "loudness_sma3_percentile20.0", "F2amplitudeLogRelF0_sma3nz_amean", "MeanUnvoicedSegmentLength", "loudness_sma3_amean", "loudness_sma3_percentile80.0", "F1amplitudeLogRelF0_sma3nz_stddevNorm")]
+
+# impute missing values using mice
+imputed_data <- mice(rf_with_nas, m = 1, method = "pmm", seed = 605794011)
+data_imputed <- complete(imputed_data, action = 1)
+
+# ensure target and gender are factors
+data_imputed$Reason <- as.factor(data_imputed$Reason)
+
+# set seed for reproducibility
+set.seed(605794011)
+
+# train/test split
+train_index2 <- createDataPartition(data_imputed$Reason, p = 0.8, list = FALSE)
+train_imputed <- data_imputed[train_index2, ]
+test_imputed <- data_imputed[-train_index2, ]
+
+# fit random forest model with selected variables
+rf_imputed <- randomForest(Reason ~ ., data = train_imputed, importance = TRUE)
+
+# predictions and evaluations of accuracy
+preds_imputed <- predict(rf_imputed, test_imputed)
+conf_matrix_imputed <- confusionMatrix(preds_imputed, test_imputed$Reason)
+accuracy_imputed <- conf_matrix_imputed$overall['Accuracy']
+
+# show results
+print(conf_matrix_imputed)
+print(accuracy_imputed)
+varImpPlot(rf_imputed, main = "Variable Importance (MICE Imputed Data)", cex = 0.7)
+
+```
+
+```{r xgboost model}
+
+# ensure Reason is a factor
+data_imputed$Reason <- as.factor(data_imputed$Reason)
+
+# clean up class levels to be valid R variable names
+levels(data_imputed$Reason) <- make.names(levels(data_imputed$Reason))
+
+# train/test split (optional if using cross-validation)
+set.seed(605794011)
+train_index <- createDataPartition(data_imputed$Reason, p = 0.8, list = FALSE)
+train_data <- data_imputed[train_index, ]
+test_data <- data_imputed[-train_index, ]
+
+# cross-validation setup
+ctrl <- trainControl(
+  method = "cv",        # cross-validaton
+  number = 10,           # 5-fold
+  classProbs = TRUE,    # needed for multiclass AUC etc.
+  summaryFunction = multiClassSummary
+)
+
+# train XGBoost model
+set.seed(605794011)
+xgb_model <- train(
+  Reason ~ .,
+  data = train_data,
+  method = "xgbTree",
+  trControl = ctrl,
+  tuneLength = 5,       # tries 5 different tuning combos
+  metric = "Accuracy"
+)
+
+# print model summary and best tuning parameters
+print(xgb_model)
+plot(xgb_model)
+
+# predict on test set
+xgb_preds <- predict(xgb_model, newdata = test_data)
+
+# confusion matrix and accuracy
+accuracy <- conf_matrix$overall['Accuracy']
+print(accuracy)
+conf_matrix <- confusionMatrix(xgb_preds, test_data$Reason)
+print(conf_matrix)
+
+```
+
+```{r ggplot}
+
+# creating a confusion matrix heatmap (pretty)
+cm_df <- as.data.frame(conf_matrix$table)
+ggplot(cm_df, aes(x = Reference, y = Prediction)) +
+  geom_tile(aes(fill = Freq), color = "white") +
+  geom_text(aes(label = Freq), size = 4) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix Heatmap (XGBoost)", x = "Actual", y = "Predicted")
+
+# extract variable importance
+xgb_imp <- varImp(xgb_model)$importance
+xgb_imp$Variable <- rownames(xgb_imp)
+
+# choose top 20 important features
+top_n <- 20
+xgb_imp <- xgb_imp %>%
+  arrange(desc(Overall)) %>%
+  slice(1:top_n)
+
+# make a clean ggplot for variable importance
+ggplot(xgb_imp, aes(x = reorder(Variable, Overall), y = Overall)) +
+  geom_col(fill = "#1f78b4") +
+  coord_flip() +
+  theme_minimal(base_size = 13) +
+  labs(title = "Top 20 Variable Importances",
+       subtitle = "XGBoost Model (Caret)",
+       x = NULL,
+       y = "Importance Score") +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    axis.text.y = element_text(size = 9),
+    axis.text.x = element_text(size = 11)
+  )
+
+```
+
+```{r k means}
+
+# remove categorical columns
+clust_data <- data_imputed %>%
+  select_if(is.numeric)
+
+# scale (standardize) the data
+clust_data_scaled <- scale(clust_data)[, -1]
+
+# set seed for reproducibility
+set.seed(605794011)
+
+# establish k as number of groups
+k <- 5
+
+# run k-means variable
+kmeans_result <- kmeans(clust_data_scaled, centers = k, nstart = 25)
+print(kmeans_result)
+
+# assign modeled clusters to each data point
+clustered_data <- data_imputed
+clustered_data$Cluster <- as.factor(kmeans_result$cluster)
+
+# visualize clusters
+fviz_cluster(kmeans_result,
+             data = clust_data_scaled,
+             ellipse.type = "euclid",
+             labelsize = 0,           
+             show.clust.cent = TRUE,
+             ggtheme = theme_minimal()) +
+  labs(title = "K-means Clustering (k = 5)", x = "PC1", y = "PC2")
+
+# run pca analysis
+pca_result <- prcomp(clust_data, scale. = TRUE)
+
+# calculate proportion of variance explained
+pve <- (pca_result$sdev)^2 / sum(pca_result$sdev^2)
+
+# plot proportion of variance for principal components
+plot(pve, type = "b", pch = 19, col = "steelblue", lwd = 2,
+     xlab = "Principal Component", 
+     ylab = "Proportion of Variance Explained", 
+     main = "PVE for Principal Components",
+     cex.main = 1.2, cex.lab = 1.1, cex.axis = 0.9)
+
+# add grid lines to graph
+grid()
+
+# label each point with exact variance value
+text(x = 1:length(pve), y = pve, 
+     labels = round(pve, 2), 
+     pos = 3, cex = 0.4, col = "black")
+
+# print proportion of variance for PC1 and PC2
+pve[1:2]
+pve[1]+pve[2]
+
+# create a data frame with cluster assignments and true labels
+df <- data.frame(Cluster = clustered_data$Cluster, CryType = data_imputed$Reason)
+
+# generate a contingency table: distribution of true labels within each cluster
+label_distribution <- table(df$Cluster, df$CryType)
+
+# neat printed table
+kable(label_distribution, caption = "Distribution of Cry Types Within Each Cluster")
+
+# convert to proportions within each cluster
+prop_distribution <- prop.table(label_distribution, margin = 1) 
+# for proportions
+kable(round(prop_distribution, 2), caption = "Proportion of Cry Types Within Each Cluster")
+
+# data frame with cluster assignments, reasons and frequency associated with each cluster/reason combo
+cluster_counts <- df %>%
+  group_by(Cluster, CryType) %>%
+  summarise(Frequency = n(), .groups = 'drop')
+
+# plot each reason against the cluster assignments
+ggplot(cluster_counts, aes(x = CryType, y = Frequency, fill = CryType)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  facet_wrap(~ Cluster, ncol = 2) +
+  labs(
+    title = "Distribution of Cry Reasons Within Each Cluster",
+    x = "Cry Reason",
+    y = "Frequency"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    strip.text = element_text(face = "bold")
+  )
+
+# dimensions
+dim(clust_data)
+
+```
+
+```{r spectral clustering}
+
+# generate random data for clustering
+set.seed(605794011)
+k <- 5
+
+# extract the first two principal components
+PC1 <- pca_result$x[, 1]
+PC2 <- pca_result$x[, 2]
+
+# compute the similarity matrix
+similarity_matrix <- exp(-dist(clust_data)^2)
+
+# perform spectral decomposition
+eigen_result <- eigen(similarity_matrix)
+
+# extract the top-k eigenvectors
+k_eigenvectors <- eigen_result$vectors[, 1:k]
+
+# perform k-means clustering on the eigenvectors
+cluster_assignments <- kmeans(k_eigenvectors, centers = k)$cluster
+
+# visualize clusters
+cluster_colors <- rainbow(k)
+plot(PC1, PC2, col = cluster_colors[cluster_assignments], pch = 19, cex = 0.7,
+     main = "Spectral Clustering with k-means", xlab = "PC1", ylab = "PC2")
+legend("topright", legend = paste("Cluster", 1:k), col = cluster_colors, pch = 19)
+
+
+```
+
+
+
+
+
+
+
+

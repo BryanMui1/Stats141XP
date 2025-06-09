@@ -1,0 +1,97 @@
+---
+title: "141XP EDA"
+author: "TEAM 4"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(janitor)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+```{r}
+# reading in data
+full_data_odd <- read.csv("filtered_full_data_odd.csv", header = TRUE)
+demographics <- read.csv("demographics_students.csv", header = TRUE)
+```
+
+```{r}
+# analyze rows
+head(demographics)
+```
+
+# Reason Distribution
+```{r}
+# see how the distributions stack up
+table(demographics$Reason)
+
+barplot(table(demographics$Reason),
+        col = "lightgreen",
+        main = "Cry Type Distribution",
+        ylab = "Count")
+
+```
+
+# Reason with Gender Proportion
+```{r}
+# see how the reasons vary with gender
+table(demographics$Gender, demographics$Reason)
+
+library(ggplot2)
+ggplot(demographics, aes(x = Reason, fill = Gender)) +
+  geom_bar(position = "fill") +
+  labs(title = "Gender Proportion by Cry Type", y = "Proportion") +
+  theme_minimal()
+```
+
+# Chi-Square
+```{r}
+# chi square test between gender and reason
+chisq.test(table(demographics$Gender, demographics$Reason))
+```
+
+# ANOVA w/ removed missing ages
+```{r}
+# anova between age and reason
+# convert missing ages to NA
+demographics$Age[demographics$Age == "NO-AGE"] <- NA
+demographics$Age <- as.numeric(demographics$Age)
+anova_result <- aov(Age ~ Reason, data = demographics)
+summary(anova_result)
+
+# visuaally see age by reason
+boxplot(Age ~ Reason, data = demographics,
+        main = "Age Distribution by Cry Type",
+        xlab = "Cry Type",
+        ylab = "Age (Months)",
+        col = "lightgreen")
+```
+
+# Cry Acoustics Dimensions
+```{r}
+# see how the acoustic feastures measure
+library(factoextra)
+# get numeric only
+acoustic_features <- full_data_odd %>%
+  select(where(is.numeric)) %>%
+  na.omit()  
+
+#scale for scree plot
+scaled_features <- scale(acoustic_features)
+pca <- prcomp(scaled_features, center = TRUE, scale. = TRUE)
+
+# plot the scree plot
+fviz_eig(pca, addlabels = TRUE, barfill = "steelblue") +
+  labs(title = "Scree Plot")
+
+```
+
