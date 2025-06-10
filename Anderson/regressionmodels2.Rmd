@@ -6,7 +6,7 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-data <- read.csv("finaldata.csv", header=TRUE) #loading data
+data <- read.csv("full_data_cleaned_without_nas.csv", header=TRUE) #loading data
 data2 <- data
 ```
 
