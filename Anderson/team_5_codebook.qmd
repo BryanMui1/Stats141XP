@@ -882,7 +882,7 @@ var_imp_df$Variable <- rownames(var_imp_df)
 top_n <- 20
 var_imp_df <- as_tibble(var_imp_df) %>%
   arrange(desc(MeanDecreaseAccuracy)) %>%
-  slice(1:top_n)
+  dplyr::slice(1:top_n)
 
 # create pretty plot for variable importance
 ggplot(var_imp_df, aes(x = reorder(Variable, MeanDecreaseAccuracy),
