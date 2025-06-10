@@ -958,8 +958,8 @@ test_data <- data_imputed[-train_index, ]
 
 # cross-validation setup
 ctrl <- trainControl(
-  method = "cv",        # cross-validaton
-  number = 10,           # 5-fold
+  method = "cv",        # 10 fold cross-validaton
+  number = 10,           
   classProbs = TRUE,    # needed for multiclass AUC etc.
   summaryFunction = multiClassSummary,
   verboseIter = FALSE
@@ -972,7 +972,7 @@ xgb_model <- train(
   data = train_data,
   method = "xgbTree",
   trControl = ctrl,
-  tuneLength = 5,       # tries 5 different tuning combos
+  tuneLength = 5,       # tries 5 different combinations of params, trains 10 models per set of params, 10 x 5 = 50 models total
   metric = "Accuracy"
 )
 
@@ -984,11 +984,10 @@ plot(xgb_model)
 xgb_preds <- predict(xgb_model, newdata = test_data)
 
 # confusion matrix and accuracy
-accuracy <- conf_matrix$overall['Accuracy']
-print(accuracy)
 conf_matrix <- confusionMatrix(xgb_preds, test_data$Reason)
 print(conf_matrix)
-
+accuracy <- conf_matrix$overall['Accuracy']
+print(accuracy)
 ```
 
 ```{r ggplot}
@@ -1008,9 +1007,9 @@ xgb_imp$Variable <- rownames(xgb_imp)
 
 # choose top 20 important features
 top_n <- 20
-xgb_imp <- xgb_imp %>%
+xgb_imp <- as_tibble(xgb_imp) %>%
   arrange(desc(Overall)) %>%
-  slice(1:top_n)
+  dplyr::slice(1:top_n)
 
 # make a clean ggplot for variable importance
 ggplot(xgb_imp, aes(x = reorder(Variable, Overall), y = Overall)) +
