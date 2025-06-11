@@ -14,6 +14,14 @@ format:
          \DefineVerbatimEnvironment{OutputCode}{Verbatim}{breaklines,commandchars=\\\{\}}
 ---
 
+```{r figure-sizes, include=FALSE}
+knitr::opts_chunk$set(
+  fig.align = "center",      # center figures
+  fig.width = 6.5,           # width in inches (PDF page is ~6.5 inches wide with 0.3in margins)
+  out.width = "100%"         # fill available width
+)
+```
+
 
 # Libraries:
 
@@ -331,12 +339,18 @@ set.seed(123)
 ctrl <- trainControl(method = "cv", number = 10, verboseIter = FALSE)
 
 # rando forest to predict clusters from features
-cluster_pred_model <- train(
-  Cluster ~ .,
-  data = dataset_for_cluster_pred,
-  method = "rf",
-  trControl = ctrl
-)
+invisible(capture.output({
+  suppressMessages({
+    suppressWarnings({
+      cluster_pred_model <- train(
+        Cluster ~ .,
+        data = dataset_for_cluster_pred,
+        method = "rf",
+        trControl = ctrl
+      )
+    })
+  })
+}))
 
 # CV accuracy for predicting clusters
 mean(cluster_pred_model$resample$Accuracy)
@@ -393,12 +407,18 @@ set.seed(123)
 ctrl <- trainControl(method = "cv", number = 10, verboseIter = FALSE)
 
 # RF model using only Cluster to predict Reason
-rf_cluster_model <- train(
-  Reason ~ Cluster,
-  data = data7,
-  method = "rf",
-  trControl = ctrl
-)
+invisible(capture.output({
+  suppressMessages({
+    suppressWarnings({
+      rf_cluster_model <- train(
+        Reason ~ Cluster,
+        data = data7,
+        method = "rf",
+        trControl = ctrl
+      )
+    })
+  })
+}))
 
 # average cross-validated accuracy
 mean(rf_cluster_model$resample$Accuracy)
@@ -665,12 +685,18 @@ testData <- data2[-trainIndex, ]
 ctrl <- trainControl(method = "cv", number = 10, verboseIter = FALSE)
 
 set.seed(333) # logistic model, just a test!
-model_logit <- train(
-  Reason ~ . - ID,
-  data = trainData,
-  method = "multinom",
-  trControl = ctrl
-)
+invisible(capture.output({
+  suppressMessages({
+    suppressWarnings({
+      model_logit <- train(
+        Reason ~ . - ID,
+        data = trainData,
+        method = "multinom",
+        trControl = ctrl
+      )
+    })
+  })
+}))
 
 model_logit$results
 
@@ -967,14 +993,20 @@ ctrl <- trainControl(
 
 # train XGBoost model
 set.seed(605794011)
-xgb_model <- train(
-  Reason ~ .,
-  data = train_data,
-  method = "xgbTree",
-  trControl = ctrl,
-  tuneLength = 5,       # tries 5 different combinations of params, trains 10 models per set of params, 10 x 5 = 50 models total
-  metric = "Accuracy"
-)
+invisible(capture.output({
+  suppressMessages({
+    suppressWarnings({
+      xgb_model <- train(
+        Reason ~ .,
+        data = train_data,
+        method = "xgbTree",
+        trControl = ctrl,
+        tuneLength = 5,       # tries 5 different combinations of params, trains 10 models per set of params, 10 x 5 = 50 models total
+        metric = "Accuracy"
+      )
+    })
+  })
+}))
 
 # print model summary and best tuning parameters
 print(xgb_model)
